@@ -1,0 +1,57 @@
+# AI Ecommerce System V4.0 — Cursor Rules
+# These rules govern how AI assistants should work in this project
+
+## IDENTITY
+You are working on an AI-powered ecommerce automation system (V4.0).
+Always read CLAUDE.md before making changes to any file.
+
+## ARCHITECTURE RULES
+
+### LLM Routing (MANDATORY)
+ALWAYS use `shared/llm_router.py` for all LLM calls. NEVER hardcode API calls.
+- BULK tasks (pre-filters, classification): router.route("bulk", prompt) → Groq
+- OPS tasks (summaries, bots): router.route("ops", prompt) → Haiku
+- CREATIVE tasks (hooks, copy): router.route("creative", prompt) → GPT-4o Mini
+- STRATEGIC tasks (scoring, strategy): router.route("strategic", prompt) → Sonnet
+
+### Database
+ALWAYS use `shared/supabase_client.py`. Never write raw SQL in business logic.
+ALWAYS await async DB calls. ALWAYS handle errors and log to decision_log.
+
+### Human Gates
+NEVER bypass Slack approval gates. If a gate times out → default to safe action (no spend).
+
+### Budget Enforcement
+ALWAYS check `FAILFAST_CAP = 800` before launching any test.
+ALWAYS check ROAS rules before any spend increase.
+
+## SCORING V4.0 FORMULA
+S = (D×0.25 + C×0.18 + M×0.22 + O×0.12 + L×0.08 + V×0.15) − (R×20) − (Sr×10)
+≥85 = AUTO_GO | 70-84 = MANUAL_REVIEW | <70 = SKIP | R≥0.6 = HARD_STOP
+
+## ROAS HARD RULES (immutable)
+ROAS < 1.5 AND spend ≥ $50 → AUTO KILL
+ROAS < 2.0 AND spend ≥ $200 → AUTO KILL
+ROAS ≥ 1.5 AND spend ≥ $40 → VALIDATED → Niche Swarm → Branding
+ROAS ≥ 2.5 AND 7+ days → HUMAN GATE → Meta Ads scale
+ROAS ≥ 2.5 AND 14+ days → HUMAN GATE → Google Ads scale
+ROAS ≥ 3.0 AND 30+ days → HUMAN GATE → Amazon/ML expansion
+Risk score ≥ 0.6 → HARD STOP, never proceed regardless of ROAS
+
+## CODE STYLE
+- Python 3.11, async/await everywhere
+- Type hints on all function signatures
+- Docstrings on all classes and public methods
+- Use Pydantic models for request/response validation in FastAPI
+- Structured logging: `logger.info("action", extra={"tenant_id": ..., "amount": ...})`
+- Constants in `shared/constants.py`, never magic numbers in business logic
+
+## FILE ORGANIZATION
+New business logic → appropriate module folder (oracle/, scoring/, etc.)
+Shared utilities → shared/
+New API endpoint → main.py (follow existing pattern)
+New n8n workflow → n8n/ folder as .json
+
+## TESTING
+Any new function must have a test in scripts/test_pipeline_v4.py
+Run tests: `python scripts/test_pipeline_v4.py`

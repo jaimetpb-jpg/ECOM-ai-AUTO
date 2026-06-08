@@ -1,0 +1,48 @@
+{
+  "name": "Oracle — 6h Detection Cycle",
+  "description": "Runs Oracle every 6h to detect product opportunities. Connects to FastAPI.",
+  "nodes": [
+    {
+      "name": "Cron — Every 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": {
+        "rule": { "interval": [{"field": "hours", "hoursInterval": 6}] }
+      },
+      "position": [240, 300]
+    },
+    {
+      "name": "GET Tenant Config",
+      "type": "n8n-nodes-base.function",
+      "parameters": {
+        "functionCode": "return [{ json: { tenant_id: $env.TENANT_ID || 'default', niches: ['skincare', 'fitness', 'home organization', 'pet accessories', 'tech gadgets'] } }];"
+      },
+      "position": [460, 300]
+    },
+    {
+      "name": "Trigger Oracle API",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/n8n/oracle-trigger",
+        "headers": { "X-API-Key": "={{ $env.API_KEY }}" },
+        "body": { "tenant_id": "={{ $json.tenant_id }}", "niches": "={{ $json.niches }}" }
+      },
+      "position": [680, 300]
+    },
+    {
+      "name": "Slack — Oracle Started",
+      "type": "n8n-nodes-base.slack",
+      "parameters": {
+        "channel": "#monitoring",
+        "text": "🔍 Oracle cycle started — scanning {{ $json.niches.join(', ') }}"
+      },
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Cron — Every 6h": { "main": [[{"node": "GET Tenant Config"}]] },
+    "GET Tenant Config": { "main": [[{"node": "Trigger Oracle API"}]] },
+    "Trigger Oracle API": { "main": [[{"node": "Slack — Oracle Started"}]] }
+  },
+  "settings": { "errorWorkflow": "error-handler" }
+}

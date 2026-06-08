@@ -1,0 +1,51 @@
+# ─── Core Framework ───────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+python-dotenv==1.0.1
+httpx==0.28.1
+
+# ─── AI / LLM ─────────────────────────────────────────────────
+anthropic>=0.49.0        # Claude Sonnet 4.6 + Haiku 4.5 (claude-haiku-4-5-20251001, claude-sonnet-4-6)
+openai==1.58.1           # GPT-4o Mini
+groq==0.13.0             # Llama 3.3 70B (free tier)
+# crewai — comentado; imports lazy-loaded en oracle/agents.py aún no activos
+# crewai==0.86.0           # Multi-agent framework (reserved for V5.2)
+# crewai-tools==0.17.0     # CrewAI tool integrations (reserved for V5.2)
+replicate==1.0.4         # Flux.1 image generation
+
+# ─── Database ─────────────────────────────────────────────────
+supabase==2.10.0
+redis==5.2.0                 # Rate limiting (optional fallback to memory)
+psycopg2-binary==2.9.10  # Direct Postgres if needed
+pgvector==0.3.6          # Cross-niche buyer graph embeddings
+
+# ─── Mathematics / ML ─────────────────────────────────────────
+numpy==2.2.1
+scipy==1.14.1            # Thompson Sampling distributions
+scikit-learn==1.6.0      # For similarity search helpers
+
+# ─── HTTP / APIs ──────────────────────────────────────────────
+aiohttp==3.11.10
+requests==2.32.3
+apify-client==1.8.1      # Amazon/ML scraping
+
+# ─── Messaging ────────────────────────────────────────────────
+twilio==9.3.7            # WhatsApp cart recovery
+slack-sdk==3.33.3        # Human gates + alerts
+
+# ─── Data Processing ──────────────────────────────────────────
+pandas==2.2.3
+pytrends==4.9.3          # Google Trends - seasonal pre-positioning
+
+# ─── Task Scheduling ──────────────────────────────────────────
+apscheduler==3.10.4      # Fallback scheduler (n8n is primary)
+
+# ─── Utilities ────────────────────────────────────────────────
+python-jose==3.3.0       # JWT auth
+passlib==1.7.4           # Password hashing
+python-multipart==0.0.20 # File uploads
+structlog==24.4.0        # Structured logging
+tenacity==9.0.0          # Retry logic for API calls
+prometheus-client>=0.21.0    # Prometheus metrics exporter (shared/prometheus_exporter.py)
+pytest>=8.0.0                # Test suite runner (tests/unit/ + tests/integration/)

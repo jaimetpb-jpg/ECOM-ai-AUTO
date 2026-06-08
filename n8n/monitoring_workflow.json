@@ -1,0 +1,82 @@
+{
+  "name": "Monitoring — 6h Cycle",
+  "description": "Runs monitoring every 6h: ROAS rules + Thompson Sampling + Saturation Model",
+  "nodes": [
+    {
+      "name": "Cron — Every 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": {
+        "rule": { "interval": [{"field": "hours", "hoursInterval": 6}] }
+      },
+      "position": [240, 300]
+    },
+    {
+      "name": "Fetch Active Campaigns (TikTok)",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "https://business-api.tiktok.com/open_api/v1.3/campaign/get/",
+        "headers": { "Access-Token": "={{ $env.TIKTOK_ACCESS_TOKEN }}" },
+        "queryParameters": {
+          "advertiser_id": "={{ $env.TIKTOK_ADVERTISER_ID }}",
+          "fields": "[\"campaign_id\",\"campaign_name\",\"status\",\"budget\"]"
+        }
+      },
+      "position": [460, 200]
+    },
+    {
+      "name": "Fetch Active Campaigns (Meta)",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "GET",
+        "url": "https://graph.facebook.com/v21.0/act_{{ $env.META_AD_ACCOUNT_ID }}/campaigns",
+        "queryParameters": {
+          "fields": "id,name,status,daily_budget",
+          "effective_status": "[\"ACTIVE\"]",
+          "access_token": "={{ $env.META_ACCESS_TOKEN }}"
+        }
+      },
+      "position": [460, 400]
+    },
+    {
+      "name": "Run Monitoring Cycle",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/n8n/monitoring-trigger",
+        "headers": { "X-API-Key": "={{ $env.API_KEY }}" },
+        "body": {
+          "tenant_id": "={{ $env.TENANT_ID || 'default' }}",
+          "campaigns": "={{ $json }}"
+        }
+      },
+      "position": [700, 300]
+    },
+    {
+      "name": "Check for KILL decisions",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{ $json.decisions.some(d => d.action === 'KILL') }}", "operation": "equal", "value2": "true" }]
+        }
+      },
+      "position": [920, 300]
+    },
+    {
+      "name": "Slack — Kill Alert",
+      "type": "n8n-nodes-base.slack",
+      "parameters": {
+        "channel": "#alerts",
+        "text": "🔴 KILL decisions made in monitoring cycle. Check #monitoring for details."
+      },
+      "position": [1140, 200]
+    }
+  ],
+  "connections": {
+    "Cron — Every 6h": { "main": [[{"node": "Fetch Active Campaigns (TikTok)"}, {"node": "Fetch Active Campaigns (Meta)"}]] },
+    "Fetch Active Campaigns (TikTok)": { "main": [[{"node": "Run Monitoring Cycle"}]] },
+    "Fetch Active Campaigns (Meta)": { "main": [[{"node": "Run Monitoring Cycle"}]] },
+    "Run Monitoring Cycle": { "main": [[{"node": "Check for KILL decisions"}]] },
+    "Check for KILL decisions": { "main": [[{"node": "Slack — Kill Alert"}], []] }
+  }
+}

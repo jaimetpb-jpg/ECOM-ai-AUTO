@@ -1,0 +1,52 @@
+{
+  "name": "Comment Mining — 15d Product Loop",
+  "description": "Every 15 days: mine reviews for active products with >50 sales, improve briefs and hooks",
+  "nodes": [
+    {
+      "name": "Cron — Every 15 Days",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": {
+        "rule": { "interval": [{"field": "days", "daysInterval": 15}] }
+      },
+      "position": [240, 300]
+    },
+    {
+      "name": "Get Active Products (DB)",
+      "type": "n8n-nodes-base.postgres",
+      "parameters": {
+        "query": "SELECT p.id, p.name, p.niche, pr.asin, pr.ml_url, pr.tiktok_hashtag, pr.original_brief FROM products p JOIN niche_profiles np ON p.brand_id = np.consolidated_brand_id WHERE p.status = 'active' AND (SELECT COUNT(*) FROM campaigns c WHERE c.opportunity_id = p.id AND c.conversions > 50) > 0"
+      },
+      "position": [460, 300]
+    },
+    {
+      "name": "Split by Product",
+      "type": "n8n-nodes-base.splitInBatches",
+      "parameters": { "batchSize": 1 },
+      "position": [680, 300]
+    },
+    {
+      "name": "Run Comment Mining",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/n8n/comment-mining-trigger",
+        "headers": { "X-API-Key": "={{ $env.API_KEY }}" },
+        "body": "={{ $json }}"
+      },
+      "position": [900, 300]
+    },
+    {
+      "name": "Wait Between Products",
+      "type": "n8n-nodes-base.wait",
+      "parameters": { "amount": 5, "unit": "minutes" },
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Cron — Every 15 Days": { "main": [[{"node": "Get Active Products (DB)"}]] },
+    "Get Active Products (DB)": { "main": [[{"node": "Split by Product"}]] },
+    "Split by Product": { "main": [[{"node": "Run Comment Mining"}]] },
+    "Run Comment Mining": { "main": [[{"node": "Wait Between Products"}]] },
+    "Wait Between Products": { "main": [[{"node": "Split by Product"}]] }
+  }
+}

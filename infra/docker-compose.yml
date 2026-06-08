@@ -1,0 +1,156 @@
+# docker-compose.yml — Full Stack: n8n + Postgres + Redis + FastAPI + Metabase + Prometheus + Grafana
+# Start: docker-compose up -d
+# Access n8n:        http://localhost:5678
+# Access API:        http://localhost:8000/docs
+# Access Metabase:   http://localhost:3000
+# Access Grafana:    http://localhost:3001  (admin/admin — cambiar en producción)
+# Access Prometheus: http://localhost:9090
+
+version: "3.8"
+
+services:
+
+  # ── Postgres (local dev only — use Supabase in prod) ─────────────────────
+  postgres:
+    image: ankane/pgvector:latest   # Postgres + pgvector extension
+    environment:
+      POSTGRES_DB:       ecommerce_ai
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres_change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (n8n queue mode + caching) ──────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # ── n8n (workflow orchestrator) ───────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_BASIC_AUTH_ACTIVE:    "true"
+      N8N_BASIC_AUTH_USER:      admin
+      N8N_BASIC_AUTH_PASSWORD:  n8n_change_me
+      N8N_HOST:                 0.0.0.0
+      N8N_PORT:                 5678
+      N8N_PROTOCOL:             http
+      NODE_ENV:                 production
+      WEBHOOK_URL:              http://localhost:5678
+      DB_TYPE:                  postgresdb
+      DB_POSTGRESDB_HOST:       postgres
+      DB_POSTGRESDB_PORT:       5432
+      DB_POSTGRESDB_DATABASE:   n8n
+      DB_POSTGRESDB_USER:       postgres
+      DB_POSTGRESDB_PASSWORD:   postgres_change_me
+      N8N_ENCRYPTION_KEY:       change-this-32-char-encryption-key
+      QUEUE_BULL_REDIS_HOST:    redis
+      QUEUE_BULL_REDIS_PORT:    6379
+      EXECUTIONS_MODE:          queue
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n:/home/node/.n8n/workflows  # Import workflows on startup
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  # ── FastAPI (AI engine) ───────────────────────────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    ports:
+      - "8000:8000"
+      - "9091:9091"   # Prometheus metrics (Bulkhead + Circuit Breaker)
+    env_file:
+      - ../.env
+    environment:
+      N8N_WEBHOOK_URL: http://n8n:5678
+    volumes:
+      - ..:/app
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+          cpus: "1.0"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Metabase (ROAS Kill Dashboard) ────────────────────────────────────────
+  metabase:
+    image: metabase/metabase:latest
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_TYPE:    postgres
+      MB_DB_HOST:    postgres
+      MB_DB_PORT:    5432
+      MB_DB_DBNAME:  ecommerce_ai
+      MB_DB_USER:    postgres
+      MB_DB_PASS:    postgres_change_me
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Prometheus (scrapes métricas de Bulkhead + Circuit Breaker) ───────────
+  # Aportación: Grok (V5.1 Sinergia)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-v51
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    depends_on:
+      - api
+
+  # ── Grafana (dashboard visual de métricas) ────────────────────────────────
+  # Aportación: Grok (V5.1 Sinergia)
+  # Acceso: http://localhost:3001  user: admin  pass: admin (cambiar en prod)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-v51
+    restart: unless-stopped
+    ports:
+      - "3001:3000"   # 3001 para no colisionar con Metabase en 3000
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
+  prometheus_data:
+  grafana_data:

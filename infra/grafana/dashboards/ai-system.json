@@ -1,0 +1,54 @@
+{
+  "title": "E-Commerce AI V5.1 - Resilience Dashboard",
+  "uid": "ecom-v51",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Bulkhead Utilization %",
+      "type": "gauge",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "targets": [
+        {"expr": "bulkhead_current_in_use / bulkhead_max_concurrent * 100", "legendFormat": "{{name}}"}
+      ],
+      "fieldConfig": {"defaults": {"min": 0, "max": 100, "unit": "percent"}}
+    },
+    {
+      "id": 2,
+      "title": "Circuit Breaker States",
+      "type": "stat",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "targets": [
+        {"expr": "circuit_breaker_state", "legendFormat": "{{name}}"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "CLOSED", "color": "green"}, "1": {"text": "OPEN", "color": "red"}, "2": {"text": "HALF_OPEN", "color": "yellow"}}}
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Bulkhead Rejections (30m)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "targets": [{"expr": "increase(bulkhead_rejections_total[30m])", "legendFormat": "{{name}}"}]
+    },
+    {
+      "id": 4,
+      "title": "Circuit Breaker Failures (30m)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [{"expr": "increase(circuit_breaker_failures_total[30m])", "legendFormat": "{{name}}"}]
+    },
+    {
+      "id": 5,
+      "title": "Circuit Breaker Rejections (30m)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [{"expr": "increase(circuit_breaker_rejections_total[30m])", "legendFormat": "{{name}}"}]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "name": "V5.1 Autonomous Orchestrator — 6h Full Pipeline",
+  "description": "V5.1: Runs full autonomous pipeline every 6h. Replaces oracle_workflow + monitoring_workflow. Endpoints: /api/n8n/orchestrator-trigger",
+  "nodes": [
+    {
+      "name": "Cron — Every 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": {
+        "rule": { "interval": [{"field": "hours", "hoursInterval": 6}] }
+      },
+      "position": [240, 300]
+    },
+    {
+      "name": "GET Tenant Config",
+      "type": "n8n-nodes-base.function",
+      "parameters": {
+        "functionCode": "return [{ json: { tenant_id: $env.TENANT_ID || 'default', niches: ($env.NICHES || 'masajeadores cervicales,vitaminas cabello,accesorios fitness').split(',').map(n => n.trim()) } }];"
+      },
+      "position": [460, 300]
+    },
+    {
+      "name": "Trigger V5.1 Orchestrator",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_BASE_URL }}/api/n8n/orchestrator-trigger",
+        "headers": { "X-API-Key": "={{ $env.API_KEY }}", "Content-Type": "application/json" },
+        "body": { "tenant_id": "={{ $json.tenant_id }}", "niches": "={{ $json.niches }}" },
+        "options": { "timeout": 120000 }
+      },
+      "position": [680, 300]
+    },
+    {
+      "name": "Check Response",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{ $json.status }}", "operation": "equal", "value2": "triggered" }]
+        }
+      },
+      "position": [900, 300]
+    },
+    {
+      "name": "Slack — Cycle Triggered",
+      "type": "n8n-nodes-base.slack",
+      "parameters": {
+        "channel": "#monitoring",
+        "text": "🤖 V5.1 Pipeline triggered — nichos: {{ $node['GET Tenant Config'].json.niches.join(', ') }} | Resultados en ~60s en #monitoring"
+      },
+      "position": [1120, 200]
+    },
+    {
+      "name": "Slack — Error Alert",
+      "type": "n8n-nodes-base.slack",
+      "parameters": {
+        "channel": "#alerts",
+        "text": "🚨 V5.1 Orchestrator trigger FAILED — tenant: {{ $node['GET Tenant Config'].json.tenant_id }} | Error: {{ $json.error || 'unknown' }}"
+      },
+      "position": [1120, 400]
+    }
+  ],
+  "connections": {
+    "Cron — Every 6h": { "main": [[{"node": "GET Tenant Config"}]] },
+    "GET Tenant Config": { "main": [[{"node": "Trigger V5.1 Orchestrator"}]] },
+    "Trigger V5.1 Orchestrator": { "main": [[{"node": "Check Response"}]] },
+    "Check Response": {
+      "main": [
+        [{"node": "Slack — Cycle Triggered"}],
+        [{"node": "Slack — Error Alert"}]
+      ]
+    }
+  },
+  "settings": { "errorWorkflow": "error-handler" }
+}
